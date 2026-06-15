@@ -1,29 +1,40 @@
-import random, streamlit as st, pandas as pd
+import streamlit as st, pandas as pd
+import streamlit.components.v1 as components
+from pyvis.network import Network
+from collections import deque
 from Projeto.Proxy import wrapperExec
 
-class Vertice:
-    def __init__(self, nome):
-        self.nome = nome
-        self.arestas = []
-    
-    def adicionarArestaUnidirecional(self, novoVertice, peso):
-        self.arestas.append((novoVertice, peso))
-    
-    def adicionarArestasBidirecional(self, novoVertice, peso):
-        self.adicionarArestaUnidirecional(novoVertice, peso)
-        novoVertice.adicionarArestaUnidirecional(self, peso)
-
-    def apagarAresta(self, vertice):
-        for(verticeConectado, distancia) in self.arestas:
-            if verticeConectado == vertice:
-                self.arestas.remove((verticeConectado, distancia))
-                verticeConectado.apagarAresta(self)
-                break
-    
-    def __str__(self):
-        return self.nome
-
 def grafo(usinasOperacionais):
+    def dfs(adj, inicio):
+        visitados = []
+
+        def visitar(no):
+            visitados.append(no)
+            for vizinho in adj.get(no, []):
+                if vizinho not in visitados:
+                    visitar(vizinho)
+        visitar(inicio)
+
+        return visitados
+
+    def bfs(adj, inicio):
+        visitados = []
+        fila = deque([inicio])
+
+        while fila:
+            atual = fila.popleft()
+
+            if atual in visitados:
+                continue
+
+            visitados.append(atual)
+
+            for vizinho in adj.get(atual, []):
+                if vizinho not in visitados:
+                    fila.append(vizinho)
+
+        return visitados
+    
     def limparTexto(valor):
         return str(valor).replace('"', "'").strip()
     
@@ -35,18 +46,34 @@ def grafo(usinasOperacionais):
         
         return valor
     
-    def corEmissao(peso):
-        if peso > 5.0: return "red", "Alta"
-        if peso > 1.0: return "orange", "Média"
-        else: return "green", "Baixa"
-    
-    def adicionarArestar(arestas, origem, destino, peso):
+    def adicionarAresta(arestas, origem, destino, peso):
         chave = tuple(sorted([origem, destino]))
 
         if chave not in arestas:
             arestas[chave] = peso
         else:
             arestas[chave] += peso
+
+    def legenda():
+        st.markdown("### Legenda dos Nós")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown("🔵 **Estado**")
+        with col2:
+            st.markdown("🟢 **Cidade**")
+        with col3:
+            st.markdown("🟡 **Usina**")
+        with col4:
+            st.markdown("🔴 **Combustível**")
+
+        st.markdown("### Legenda das Arestas")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("🟢 **0 a 1 t/h** → Baixa emissão")
+        with col2:
+            st.markdown("🟠 **1 a 5 t/h** → Média emissão")
+        with col3:
+            st.markdown("🔴 **Acima de 5 t/h** → Alta emissão")
 
     #Valores aproximados baseados em: IPCC, International Energy Agency e National Renewable Energy Laboratory (Pedi para o Gemini me ajudar com estes dados)
     fatoresCO2 = {
@@ -83,6 +110,8 @@ def grafo(usinasOperacionais):
         "Biogás - Floresta": 120
     }
 
+    legenda()
+
     listaCombustiveis = sorted(list(fatoresCO2.keys()))
     combustiveisSelecionados = st.multiselect(
         "Filtrar por tipos de combustível (deixe vazio para ver todos):",
@@ -99,7 +128,6 @@ def grafo(usinasOperacionais):
         return
     
     qtd = len(usinasFiltradas)
-
     qtdUsinas = st.slider(
             label = "Escolha a quantidade de usinas:",
             min_value = 0,
@@ -107,21 +135,26 @@ def grafo(usinasOperacionais):
             value = 2, #min(50, qtd)
             step = 1
         )
+    if qtdUsinas == 0:
+        st.write("Precisa ter ao menos uma usina")
+        return
     
     modo = st.selectbox(
         "Tipo de visualização",
         [
-            "Estado ↔ Cidade ↔ Usina ↔ Combustível",
-            "Estado ↔ Usina ↔ Combustível",
+            "Estado ↔ Combustível",
+            "Estado ↔ Cidade ↔ Combustível",
             "Cidade ↔ Usina ↔ Combustível",
-            "Estado ↔ Combustível"
+            "Estado ↔ Usina ↔ Combustível",
+            "Estado ↔ Cidade ↔ Usina ↔ Combustível"
         ]
     )
     
-    usinasAleatorias = usinasFiltradas.sample(qtdUsinas, random_state=42)
+    usinasAleatorias = usinasFiltradas.sample(qtdUsinas, random_state=qtdUsinas)
 
     nos = {}
     arestas = {}
+    emissaoCombustivel = {}
     for _, usina in usinasAleatorias.iterrows():
         uf = limparTexto(usina["SigUFPrincipal"])
         cidade = extrairCidade(usina["DscMuninicpios"])
@@ -142,57 +175,165 @@ def grafo(usinasOperacionais):
             nos[cidade] = "cidade"
             nos[nomeUsina] = "usina"
             nos[combustivel] = "combustivel"
-            adicionarArestar(arestas, uf, cidade, 0)
-            adicionarArestar(arestas, cidade, nomeUsina, emissao)
-            adicionarArestar(arestas, nomeUsina, combustivel, emissao)
+            adicionarAresta(arestas, uf, cidade, 0)
+            adicionarAresta(arestas, cidade, nomeUsina, emissao)
+            adicionarAresta(arestas, nomeUsina, combustivel, emissao)
         elif modo == "Estado ↔ Usina ↔ Combustível":
             nos[uf] = "estado"
             nos[nomeUsina] = "usina"
             nos[combustivel] = "combustivel"
-            adicionarArestar(arestas, uf, nomeUsina, emissao)
-            adicionarArestar(arestas, nomeUsina, combustivel, emissao)
+            adicionarAresta(arestas, uf, nomeUsina, emissao)
+            adicionarAresta(arestas, nomeUsina, combustivel, emissao)
         elif modo == "Cidade ↔ Usina ↔ Combustível":
             nos[cidade] = "cidade"
             nos[nomeUsina] = "usina"
             nos[combustivel] = "combustivel"
-            adicionarArestar(arestas, cidade, nomeUsina, emissao)
-            adicionarArestar(arestas, nomeUsina, combustivel, emissao)
+            adicionarAresta(arestas, cidade, nomeUsina, emissao)
+            adicionarAresta(arestas, nomeUsina, combustivel, emissao)
+        elif modo == "Estado ↔ Cidade ↔ Combustível":
+            nos[uf] = "estado"
+            nos[cidade] = "cidade"
+            nos[combustivel] = "combustivel"
+            chave1 = (uf, cidade)
+            chave2 = (cidade, combustivel)
+            arestas[chave1] = 0
+            emissaoCombustivel[chave2] = (
+                emissaoCombustivel.get(chave2, 0)
+                + emissao
+            )
         elif modo == "Estado ↔ Combustível":
             nos[uf] = "estado"
             nos[combustivel] = "combustivel"
-            adicionarArestar(arestas, uf, combustivel, emissao)
-    
-    dot_code = "graph G {\n"
-    dot_code += "  rankdir=LR;\n"
-    dot_code += "  overlap=false;\n"
-    dot_code += "  splines=true;\n"
-    dot_code += "  layout=dot;\n"
-    dot_code += "  nodesep=0.5;\n"
-    dot_code += "  ranksep=1.5;\n"
-    
-    for nome, tipo in nos.items():
-        if tipo == "estado":
-            dot_code += f'  "{nome}" [shape=circle, style=filled, fillcolor=lightblue];\n'
-        elif tipo == "cidade":
-            dot_code += f'  "{nome}" [shape=circle, style=filled, fillcolor=lightgreen];\n'
-        elif tipo == "usina":
-            dot_code += f'  "{nome}" [shape=circle, style=filled, fillcolor=lightgray];\n'
-        elif tipo == "combustivel":
-            dot_code += f'  "{nome}" [shape=circle, style=filled, fillcolor=khaki];\n'
-    
-    for (origem, destino), peso in arestas.items():
-        cor, nivel = corEmissao(peso)
-        label = f"{peso} t/h"
+            chave = (uf, combustivel)
+            emissaoCombustivel[chave] = (
+                emissaoCombustivel.get(chave, 0)
+                + emissao
+            )
+    if modo in (
+        "Estado ↔ Combustível",
+        "Estado ↔ Cidade ↔ Combustível"
+    ):
+        for (origem, combustivel), emissaoTotal in emissaoCombustivel.items():
+            if modo == "Estado ↔ Combustível":
+                nos[origem] = "estado"
+            else:
+                nos[origem] = "cidade"
+            nos[combustivel] = "combustivel"
 
-        dot_code += (
-            f'  "{origem}" -- "{destino}" '
-            f'[label="{label}", color="{cor}", penwidth={1}, fontcolor="{cor}"];\n'
+            adicionarAresta(
+                arestas,
+                origem,
+                combustivel,
+                round(emissaoTotal, 3)
+            )
+    
+    st.subheader("Visualização da Rede de Distribuição e Emissões")
+
+    net = Network(
+        height="800px",
+        width="100%",
+        bgcolor="white"
+    )
+
+    #net.force_atlas_2based()
+
+    for nome, tipo in nos.items():
+        cor = {
+            "estado": "#00B7FF",
+            "cidade": "#00FF00",
+            "usina": "#FFE600",
+            "combustivel": "#FF0000"
+        }[tipo]
+
+        net.add_node(
+            nome,
+            label = nome if tipo in ("estado", "combustivel") else " ",
+            title = nome,
+            shape = "circle",
+            color = cor,
+            font={
+                "size": 8 if tipo == "combustivel" else 12
+            }
         )
 
-    dot_code += "}"
+    for (origem, destino), peso in arestas.items():
+        if peso <= 1:
+            cor = "green"
+            largura = 1
+        elif peso <= 5:
+            cor = "orange"
+            largura = 3
+        else:
+            cor = "red"
+            largura = 5
+        net.add_edge(
+            origem,
+            destino,
+            label=f"{peso:.2f}",
+            title=f"{peso:.2f} t/h",
+            color=cor,
+            width=largura
+        )
 
-    st.subheader("Visualização da Rede de Distribuição e Emissões")
-    st.graphviz_chart(dot_code, use_container_width=True)
+    html = net.generate_html()
+
+    components.html(
+        html,
+        height=800,
+        scrolling=False,
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Nós", len(nos))
+    with col2:
+        st.metric("Arestas", len(arestas))
+    st.dataframe(
+        pd.DataFrame(
+            [
+                [origem, destino, peso]
+                for (origem, destino), peso in arestas.items()
+            ],
+            columns=["Origem", "Destino", "Emissão (t/h)"]
+        )
+    )
+    
+    adj = {}
+    for (origem, destino), peso in arestas.items():
+
+        if origem not in adj:
+            adj[origem] = []
+
+        if destino not in adj:
+            adj[destino] = []
+
+        adj[origem].append(destino)
+        adj[destino].append(origem)
+
+    if len(nos) > 0:
+        inicio = st.selectbox(
+            "Vértice inicial",
+            sorted(nos.keys())
+        )
+
+        algoritmo = st.radio(
+            "Algoritmo",
+            ["DFS", "BFS"]
+        )
+
+        if st.button("Executar Busca"):
+            if algoritmo == "DFS":
+                resultado = dfs(adj, inicio)
+            else:
+                resultado = bfs(adj, inicio)
+
+            st.success(
+                f"{len(resultado)} nós visitados"
+            )
+
+            st.write(
+                resultado
+            )
     
 @wrapperExec
 def main(dados):
