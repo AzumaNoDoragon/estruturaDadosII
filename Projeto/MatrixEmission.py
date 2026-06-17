@@ -227,11 +227,12 @@ def grafo(usinasOperacionais):
         maxPoluente = dfBruto["Emissão Potencial (t/h)"].idxmax() if dados else None
         usinaCritica = dfBruto.loc[maxPoluente]["Usina"] if maxPoluente is not None else "N/A"
         emissaoCritica = dfBruto["Emissão Potencial (t/h)"].max() if dados else 0.0
-        st.markdown(f"""
-            Obs.: Os dados das usinas são reais (ANEEL), enquanto os fatores de emissão de CO₂ baseiam-se nas diretrizes do IPCC para cálculo de pegada de carbono por vetor energético.
-            
+        st.markdown("""
+            * **Nota de Escopo Dinâmico:** Os resultados apresentados abaixo são recalculados em tempo real de acordo com as suas ações. Caso o checkbox para verificar todos os dados esteja ativo, os cálculos abrangerão a base de dados completa da ANEEL; caso contrário, refletirão estritamente a amostra atual renderizada no grafo.
             ---
-            **1. Qual ativo de geração (Usina) isolado representa o maior ponto crítico de emissão de CO₂ no cenário atual?**
+        """)
+        st.markdown("""
+            **1. Qual Usina representa o maior ponto crítico de emissão de CO₂ no cenário atual?**
             * **Resposta:** A usina **{usinaCritica}** destaca-se como o maior poluente, gerando individualmente um fluxo potencial de **{emissaoCritica:.3f} t/h** de CO₂.
             ---
         """)
@@ -244,7 +245,7 @@ def grafo(usinasOperacionais):
         else:
             estadoLider, emissaoEstado = "N/A", 0.0
         st.markdown(f"""
-            **2. Qual unidade federativa (Estado) concentra o maior volume acumulado de emissões horárias com base nas usinas mapeadas?**
+            **2. Qual Estado concentra o maior volume acumulado de emissões horárias com base nas usinas mapeadas?**
             * **Resposta:** O estado do **{estadoLider}** lidera o índice de emissões agregadas na amostragem atual, com um impacto de **{emissaoEstado:.3f} t/h** de CO₂.
             ---
         """)
@@ -279,7 +280,7 @@ def grafo(usinasOperacionais):
             algoritmo = st.radio("Algoritmo", ["DFS", "BFS"])
         if noInicialBusca:
             resultadoBusca = g.dfs(noInicialBusca) if algoritmo == "DFS" else g.bfs(noInicialBusca)
-            nomesVisitados = [g.labels.get(no_id, no_id) for no_id in resultadoBusca]
+            nomesVisitados = [g.labels.get(noId, noId) for noId in resultadoBusca]
         else:
             resultadoBusca, nomesVisitados = [], []
         st.markdown(f"""
@@ -290,11 +291,11 @@ def grafo(usinasOperacionais):
         st.write("---")
         
         # Pergunta 5. Análise de Conectividade
-        total_estados = dfBruto["Estado (UF)"].nunique() if dados else 0
-        total_cidades = dfBruto["Cidade"].nunique() if dados else 0
+        totalEstados = dfBruto["Estado (UF)"].nunique() if dados else 0
+        totalCidades = dfBruto["Cidade"].nunique() if dados else 0
         st.markdown(f"""
             **5. Qual é a abrangência geográfica e o impacto socioambiental do conjunto de usinas atualmente selecionado no filtro?**
-            * **Resposta:** O cenário em análise espalha o seu impacto por **{total_estados} Estado(s)** e **{total_cidades} Cidade(s)** diferentes, permitindo mapear a matriz poluente.
+            * **Resposta:** O cenário em análise espalha o seu impacto por **{totalEstados} Estado(s)** e **{totalCidades} Cidade(s)** diferentes, permitindo mapear a matriz poluente.
         """)
 
 @wrapperExec

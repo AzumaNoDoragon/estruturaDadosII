@@ -5,10 +5,10 @@ from Projeto.MatrixEmission import main
 st.sidebar.title("Menu de Upload")
 
 dados = None
-uploaded_file = st.sidebar.file_uploader("Envie o arquivo JSON", type=["json"])
-if uploaded_file:
+uploadedFile = st.sidebar.file_uploader("Envie o arquivo JSON", type=["json"])
+if uploadedFile:
     try:
-        dados = json.load(uploaded_file)
+        dados = json.load(uploadedFile)
         st.sidebar.success("Arquivo carregado com sucesso!")
         main(dados)
     except Exception as e:
