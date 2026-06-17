@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+from Projeto.MatrixEmission import main
 
 st.sidebar.title("Menu de Upload")
 
@@ -9,8 +10,7 @@ if uploaded_file:
     try:
         dados = json.load(uploaded_file)
         st.sidebar.success("Arquivo carregado com sucesso!")
-        import Projeto.MatrixEmission
-        Projeto.MatrixEmission.main(dados)
+        main(dados)
     except Exception as e:
         st.error(f"Erro ao executar: {e}")
 else:
