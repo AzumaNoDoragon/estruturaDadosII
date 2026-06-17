@@ -13,6 +13,24 @@ def extrairCidade(valor):
 
 def legenda():
     with st.expander("LEGENDAS", expanded=False):
+        with st.expander("Sobre os dados utilizados", expanded=False):
+            st.markdown("""
+                ### Origem dos Dados
+
+                - Dados das usinas: Agência Nacional de Energia Elétrica (ANEEL).
+                - Foram consideradas apenas usinas em operação.
+                - Os combustíveis utilizados pelas usinas são dados oficiais da base.
+                - Os fatores de emissão de CO₂ foram estimados a partir de referências do IPCC e literatura especializada.
+                - As emissões apresentadas representam uma estimativa do potencial de emissão de CO₂, calculada a partir da potência máxima da usina e do fator de emissão associado ao combustível utilizado.
+
+                ### Limitações
+
+                - O objetivo da análise é comparar impactos potenciais entre diferentes fontes energéticas.
+                - O cálculo não considera fatores operacionais, como eficiência da usina, fator de capacidade, carga efetiva ou variações temporais de geração.
+                - Os valores apresentados não representam medições reais de emissão de CO₂, mas sim uma estimativa teórica do potencial de emissão associado à capacidade máxima de geração de cada usina.
+                - Os fatores de emissão utilizados são aproximações baseadas em referências técnicas e devem ser interpretados como indicadores comparativos, não como valores oficiais de emissão das usinas.
+            """)
+
         st.markdown("### Legenda dos Nós")
         col1, col2, col3, col4 = st.columns(4)
         with col1: st.markdown("🔵 **Estado**")

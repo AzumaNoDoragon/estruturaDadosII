@@ -170,20 +170,20 @@ def grafo(usinasOperacionais):
     if opc:
         for _, row in usinasFiltradas.iterrows():
             try:
-                potencia_bruta = float(str(row["MdaPotenciaOutorgadaKw"]).replace(".", "").replace(",", "."))
+                potenciaBruta = float(str(row["MdaPotenciaOutorgadaKw"]).replace(".", "").replace(",", "."))
             except:
-                potencia_bruta = 0.0
+                potenciaBruta = 0.0
                 
-            fator_comb = fatoresCO2.get(limparTexto(row["NomFonteCombustivel"]), 0)
-            emissao_calculada = round((potencia_bruta * fator_comb) / 1_000_000, 3)            
+            fatorComb = fatoresCO2.get(limparTexto(row["NomFonteCombustivel"]), 0)
+            emissaoCalculada = round((potenciaBruta * fatorComb) / 1_000_000, 3)            
             dadosTabela.append({
                 "Estado (UF)": limparTexto(row["SigUFPrincipal"]),
                 "Cidade": extrairCidade(row["DscMuninicpios"]),
                 "Usina": limparTexto(row["NomEmpreendimento"]),
                 "Combustível": limparTexto(row["NomFonteCombustivel"]),
-                "Potência Outorgada (kW)": potencia_bruta,
-                "Fator de Emissão (gCO2/kWh)": fator_comb,
-                "Emissão Potencial (t/h)": emissao_calculada
+                "Potência Outorgada (kW)": potenciaBruta,
+                "Fator de Emissão (gCO2/kWh)": fatorComb,
+                "Emissão Potencial (t/h)": emissaoCalculada
             })
     else:
         for u in listaUsinas:
@@ -201,8 +201,8 @@ def grafo(usinasOperacionais):
     colunasDisponiveis = list(dfBruto.columns)
     colunasSelecionadas = st.multiselect(
         "Selecione quais detalhes deseja inspecionar na tabela:",
-        options=colunasDisponiveis,
-        default=["Estado (UF)", "Cidade", "Emissão Potencial (t/h)"]
+        options = colunasDisponiveis,
+        default = colunasDisponiveis
     )
 
     if colunasSelecionadas:
@@ -219,17 +219,84 @@ def grafo(usinasOperacionais):
         st.dataframe(dfExibir[colunasSelecionadas], width="stretch")
     else:
         st.info("Por favor, selecione pelo menos uma coluna acima para visualizar os dados.")
-    
-    if len(g.nos) > 0:
-        inicio = st.selectbox("Vértice inicial", sorted(g.nos.keys()), format_func=lambda x: g.labels.get(x, x))
-        algoritmo = st.radio("Algoritmo", ["DFS", "BFS"])
 
-        if st.button("Executar Busca"):
-            resultado = g.dfs(inicio) if algoritmo == "DFS" else g.bfs(inicio)
-            st.success(f"{len(resultado)} nós visitados")
-            nomesVisitados = [g.labels.get(no_id, no_id) for no_id in resultado]
-            st.write(nomesVisitados)
-    
+    with st.expander("Perguntas analíticas que o sistema responde", expanded=False):
+        dados = not dfBruto.empty
+
+        # Pergunta 1. Usina mais poluente
+        maxPoluente = dfBruto["Emissão Potencial (t/h)"].idxmax() if dados else None
+        usinaCritica = dfBruto.loc[maxPoluente]["Usina"] if maxPoluente is not None else "N/A"
+        emissaoCritica = dfBruto["Emissão Potencial (t/h)"].max() if dados else 0.0
+        st.markdown(f"""
+            Obs.: Os dados das usinas são reais (ANEEL), enquanto os fatores de emissão de CO₂ baseiam-se nas diretrizes do IPCC para cálculo de pegada de carbono por vetor energético.
+            
+            ---
+            **1. Qual ativo de geração (Usina) isolado representa o maior ponto crítico de emissão de CO₂ no cenário atual?**
+            * **Resposta:** A usina **{usinaCritica}** destaca-se como o maior poluente, gerando individualmente um fluxo potencial de **{emissaoCritica:.3f} t/h** de CO₂.
+            ---
+        """)
+
+        # Pergunta 2. Estado líder em emiss]oes na amostragem
+        if dados:
+            grupoEstado = dfBruto.groupby("Estado (UF)")["Emissão Potencial (t/h)"].sum()
+            estadoLider = grupoEstado.idxmax()
+            emissaoEstado = grupoEstado.max()
+        else:
+            estadoLider, emissaoEstado = "N/A", 0.0
+        st.markdown(f"""
+            **2. Qual unidade federativa (Estado) concentra o maior volume acumulado de emissões horárias com base nas usinas mapeadas?**
+            * **Resposta:** O estado do **{estadoLider}** lidera o índice de emissões agregadas na amostragem atual, com um impacto de **{emissaoEstado:.3f} t/h** de CO₂.
+            ---
+        """)
+        
+        # Pergunta 3. Combustível com maior fator poluente
+        if dados:
+            grupoCombustivel = dfBruto.groupby("Combustível")["Fator de Emissão (gCO2/kWh)"].mean()
+            combMaisPoluente = grupoCombustivel.idxmax()
+            fatorPoluente = grupoCombustivel.max()
+        else:
+            combMaisPoluente, fatorPoluente = "N/A", 0.0
+        st.markdown(f"""
+            **3. Qual das fontes de combustível selecionadas possui o maior fator de emissão (potencial poluente por kWh)?**
+            * **Resposta:** O combustível **{combMaisPoluente}** apresenta a menor eficiência ecológica, registando um fator de emissão médio de **{fatorPoluente} gCO₂/kWh**.
+        """)
+        st.write("---")
+
+        # Pergunta 4. Rastreabilidade de Impacto
+        st.write("Configuração da resposta 4")
+        col1, col2 = st.columns(2)
+        with col1:
+            noInicialBusca = st.selectbox("Vértice inicial", sorted(g.nos.keys()), format_func=lambda x: g.labels.get(x, x))
+        with col2:
+            with st.expander("BFS/DFS"):
+                st.info("""
+                    Busca em Largura (BFS):
+                    Explora primeiro os vértices mais próximos do nó inicial.
+
+                    Busca em Profundidade (DFS):
+                    Explora um caminho até o final antes de retroceder.
+                """)
+            algoritmo = st.radio("Algoritmo", ["DFS", "BFS"])
+        if noInicialBusca:
+            resultadoBusca = g.dfs(noInicialBusca) if algoritmo == "DFS" else g.bfs(noInicialBusca)
+            nomesVisitados = [g.labels.get(no_id, no_id) for no_id in resultadoBusca]
+        else:
+            resultadoBusca, nomesVisitados = [], []
+        st.markdown(f"""
+            **4. Aplicação do Algoritmo de Busca ({algoritmo}): Partindo do nó selecionado '{g.labels.get(noInicialBusca, noInicialBusca) if noInicialBusca else "N/A"}', qual é o caminho de dependência e alcance de impacto mapeado?**
+            * **Resposta:** O algoritmo de varredura **{algoritmo}** processou a topologia em tempo real e descobriu que este ponto conecta-se diretamente com **{len(resultadoBusca)} elementos** na rede.
+            * **Caminho de Rastreabilidade:** {nomesVisitados}
+        """)
+        st.write("---")
+        
+        # Pergunta 5. Análise de Conectividade
+        total_estados = dfBruto["Estado (UF)"].nunique() if dados else 0
+        total_cidades = dfBruto["Cidade"].nunique() if dados else 0
+        st.markdown(f"""
+            **5. Qual é a abrangência geográfica e o impacto socioambiental do conjunto de usinas atualmente selecionado no filtro?**
+            * **Resposta:** O cenário em análise espalha o seu impacto por **{total_estados} Estado(s)** e **{total_cidades} Cidade(s)** diferentes, permitindo mapear a matriz poluente.
+        """)
+
 @wrapperExec
 def main(dados):
     st.title("MatrixEmission")
